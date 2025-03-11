@@ -256,8 +256,8 @@ if __name__ == "_main_":
     parser.add_argument(
         '--type-of-input',type = str,default = 'subfolder_images', choices =['images','subfolder_images']
     )
-    parser.add_argument('--input-folder-path',default="/data/inputs/image_folders/",type = str)
-    parser.add_argument('--output-html-dir',default="/data/results/hi",type = str)
+    parser.add_argument('--input-folder-path',default="./qwen_testing/",type = str)
+    parser.add_argument('--output-html-dir',default="./outputs",type = str)
     parser.add_argument('--output-type',type=str,default="html" ,  choices =['html','doc_type'])
     args = parser.parse_args()
     main(args)
