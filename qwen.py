@@ -213,7 +213,7 @@ def main(args):
     while True:
         outputs = llm.generate(inputs, sampling_params=sampling_params)
     
-if __name__ == "_main_":
+if __name__ == "__main__":
     parser = FlexibleArgumentParser(
         description='Demo on using vLLM for offline inference with '
         'vision language models for text generation')
