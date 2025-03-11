@@ -25,17 +25,17 @@ def run_qwen2_5_vl(question: str, modality: str):
         tensor_parallel_size=8,
         disable_mm_preprocessor_cache=args.disable_mm_preprocessor_cache,  
     )
-    while True:
-        if modality == "image":
-            placeholder = "<|image_pad|>"
-        elif modality == "video":
-            placeholder = "<|video_pad|>"
+    
+    if modality == "image":
+        placeholder = "<|image_pad|>"
+    elif modality == "video":
+        placeholder = "<|video_pad|>"
 
-        prompt = ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
-                f"<|im_start|>user\n<|vision_start|>{placeholder}<|vision_end|>"
-                f"{question}<|im_end|>\n"
-                "<|im_start|>assistant\n")
-        stop_token_ids = None
+    prompt = ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+            f"<|im_start|>user\n<|vision_start|>{placeholder}<|vision_end|>"
+            f"{question}<|im_end|>\n"
+            "<|im_start|>assistant\n")
+    stop_token_ids = None
     return llm, prompt, stop_token_ids
 
 
@@ -44,10 +44,10 @@ def get_multi_modal_input(args):
     
     if args.modality == "image":
         image = Image.open("./qwen_testing/22-04-2016-p-/22-04-2016-p-_page_1.png").convert("RGB")
-
+       
         if args.output_type =='html':
             img_question = """
-            You are tasked with converting a scanned document image into a fully-renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
+             You are tasked with converting a scanned document image into a fully-renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
 
                 Follow these steps to create the HTML document:
 
@@ -57,24 +57,24 @@ def get_multi_modal_input(args):
                 - Pay attention to the overall layout and structure.
 
                 2. Create the basic HTML structure:
-                - Begin with the standard HTML5 doctype and `<html>`, `<head>`, and `<body>` tags.
-                - Include a `<meta charset="UTF-8">` tag in the `<head>` section.
-                - Add a `<title>` tag with an appropriate title based on the document content.
+                - Begin with the standard HTML5 doctype and <html>, <head>, and <body> tags.
+                - Include a <meta charset="UTF-8"> tag in the <head> section.
+                - Add a <title> tag with an appropriate title based on the document content.
 
                 3. Represent the document content:
-                - Use appropriate HTML elements to structure the content (e.g., `<h1>`, `<h2>`, `<p>`, `<ul>`, `<ol>`, `<li>`).
+                - Use appropriate HTML elements to structure the content (e.g., <h1>, <h2>, <p>, <ul>, <ol>, <li>).
                 - For tables:
-                    - Use `<table>`, `<tr>`, `<th>`, and `<td>` tags.
+                    - Use <table>, <tr>, <th>, and <td> tags.
                     - Implement colspan and rowspan attributes if necessary.
                     - Ensure the table structure accurately reflects the original.
                 - For handwritten elements:
-                    - Use `<span>` tags with a class attribute (e.g., `<span class="handwritten">`).
+                    - Use <span> tags with a class attribute (e.g., <span class="handwritten">).
                 - For stamps and logos:
-                    - Use `<div>` tags with appropriate class attributes (e.g., `<div class="stamp">`, `<div class="logo">`).
+                    - Use <div> tags with appropriate class attributes (e.g., <div class="stamp">, <div class="logo">).
                     - Describe the visual appearance of stamps and logos using text content within these divs.
 
                 4. Apply basic styling:
-                - Create a `<style>` section in the `<head>` of the document.
+                - Create a <style> section in the <head> of the document.
                 - Define basic styles for the document layout.
                 - Add specific styles for handwritten text, stamps, and logos.
                 - Use CSS to approximate the visual appearance of the original document (e.g., fonts, colors, spacing).
@@ -85,19 +85,13 @@ def get_multi_modal_input(args):
                 - Verify that tables are correctly formatted and aligned.
 
                 6. Output the final HTML:
-                - Provide the complete HTML code, including doctype, `<html>`, `<head>`, and `<body>` tags.
+                - Provide the complete HTML code, including doctype, <html>, <head>, and <body> tags.
                 - Ensure all opening tags have corresponding closing tags.
                 - Use proper indentation for readability.
-                - Begin your response with `<!DOCTYPE html>` and end it with `</html>`.
+                - Begin your response with <!DOCTYPE html> and end it with </html>.
             """
         elif args.output_type == 'doc_type':
-            # img_question = """ 
-            # You are an AI specialized in recognizing and extracting text from images. Your mission is to:
-            #   1. Analyze the image document 
-            #   2. Identify the document type from the following categories:
-            #   - Circulars, Notifications, Orders, Memorandums, Gazettes, Acts/Rules, Policies, Resolutions, Guidelines, Licenses, Minutes of Meetings, Forms, Receipts, Bonds, Tenders,resumes,bio-data.
-            #   3. provide the **document type** in plain text.
-            # """
+          
             img_question = """
             You are an AI specialized in analyzing and extracting text from images. Your task is to:
 
@@ -132,7 +126,7 @@ def get_multi_modal_input(args):
 
     if args.modality == "video":
         video = VideoAsset(name="sample_demo_1.mp4",
-                            num_frames=args.num_frames).np_ndarrays
+                           num_frames=args.num_frames).np_ndarrays
         vid_question = "Why is this video funny?"
 
         return {
@@ -163,6 +157,7 @@ def apply_image_repeat(folder_path, prompt, modality):
     
 
 def folders_pdf(folder_path, prompt, modality):
+   
     inputs = []
     cnt=0
     for imgfolder in os.listdir(folder_path):
@@ -178,6 +173,7 @@ def folders_pdf(folder_path, prompt, modality):
                     },
                     "image_name":imgfile
                 })
+      
     return inputs               
 
 
@@ -214,47 +210,10 @@ def main(args):
     elif type_of_input == 'subfolder_images':
         inputs = folders_pdf(input_folder_path,prompt,modality) 
     start_time = time.time()
-    #while True:
-    outputs = llm.generate(inputs, sampling_params=sampling_params)
-    #import IPython;IPython.embed() 
-    image_names = [entry["image_name"] for entry in inputs]
-
-    elapsed_time = time.time() - start_time
+    while True:
+        outputs = llm.generate(inputs, sampling_params=sampling_params)
     
-    if args.output_type == 'html':
-        cnt=0
-        for o in outputs:
-            generated_text = o.outputs[0].text
-            print(generated_text)
-    
-            image_name =image_names[cnt][:-4]
-            cnt+=1
-            print(image_name)
-
-            html_filename = f"{image_name}.html"
-            html_filepath = os.path.join(output_html_dir, html_filename)
-        
-            with open(html_filepath, "w", encoding="utf-8") as f:
-                f.write(generated_text)
-        
-            print(f"Saved HTML: {html_filepath}")
-    elif args.output_type == 'doc_type':
-        op_list={}
-        cnt=0
-        for o in outputs:
-            generated_text = o.outputs[0].text
-            print(generated_text)
-    
-            image_name =image_names[cnt][:-4]
-            cnt+=1
-            print(image_name)
-            op_list[image_name]=generated_text
-        with open('/data/results/qwen_doc_type_72b.txt',"w",encoding = 'utf-8') as f:
-            for key,value in op_list.items():
-                f.write(f"{key}:{value}\n")         
-    print("-- generate time = {}".format(elapsed_time))
-
-if __name__ == "__main__":
+if __name__ == "_main_":
     parser = FlexibleArgumentParser(
         description='Demo on using vLLM for offline inference with '
         'vision language models for text generation')
@@ -297,8 +256,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--type-of-input',type = str,default = 'subfolder_images', choices =['images','subfolder_images']
     )
-    parser.add_argument('--input-folder-path',default="./qwen_testing",type = str)
-    parser.add_argument('--output-html-dir',default="./outputs",type = str)
+    parser.add_argument('--input-folder-path',default="/data/inputs/image_folders/",type = str)
+    parser.add_argument('--output-html-dir',default="/data/results/hi",type = str)
     parser.add_argument('--output-type',type=str,default="html" ,  choices =['html','doc_type'])
     args = parser.parse_args()
     main(args)
