@@ -43,13 +43,11 @@ def run_qwen2_5_vl(question: str, modality: str):
 def get_multi_modal_input(args):
     
     if args.modality == "image":
-        image = Image.open("/data/inputs/images/image9.jpg").convert("RGB")
-        # img_question="""
-        # You are an AI specialized in recognizing and extracting text from images.Your mission is to analyze the image document and generate the result in QwenVL Document Parser HTML format using specified tags while maintaining user privacy and data integrity.
-        # """
+        image = Image.open("./qwen_testing/22-04-2016-p-/22-04-2016-p-_page_1.png").convert("RGB")
+
         if args.output_type =='html':
             img_question = """
-             You are tasked with converting a scanned document image into a fully-renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
+            You are tasked with converting a scanned document image into a fully-renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
 
                 Follow these steps to create the HTML document:
 
@@ -134,7 +132,7 @@ def get_multi_modal_input(args):
 
     if args.modality == "video":
         video = VideoAsset(name="sample_demo_1.mp4",
-                           num_frames=args.num_frames).np_ndarrays
+                            num_frames=args.num_frames).np_ndarrays
         vid_question = "Why is this video funny?"
 
         return {
@@ -165,7 +163,6 @@ def apply_image_repeat(folder_path, prompt, modality):
     
 
 def folders_pdf(folder_path, prompt, modality):
-   
     inputs = []
     cnt=0
     for imgfolder in os.listdir(folder_path):
@@ -181,7 +178,6 @@ def folders_pdf(folder_path, prompt, modality):
                     },
                     "image_name":imgfile
                 })
-      
     return inputs               
 
 
