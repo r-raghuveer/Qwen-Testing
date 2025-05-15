@@ -59,12 +59,12 @@ def run_qwen2_5_vl(question: str,
 # ---------------------------------------------------------------------------
 
 def get_multi_modal_input(args):
-    """Prepare image or video asset + task‑specific question."""
+    """Prepare one sample image (or video) + task‑specific question."""
 
     if args.modality == "image":
-        image = Image.open(
-            "./qwen_testing/22-04-2016-p-/22-04-2016-p-_page_1.png"
-        ).convert("RGB")
+        # ---- choose the first available image dynamically ------------------
+        img_path = _pick_first_image(args.input_folder_path)
+        image = Image.open(img_path).convert("RGB")
 
         if args.output_type == "html":
             img_question = (
@@ -96,7 +96,6 @@ def get_multi_modal_input(args):
         return {"data": video, "question": "Why is this video funny?"}
 
     raise ValueError(f"Unsupported modality: {args.modality}")
-
 
 def apply_image_repeat(folder_path: str, prompt: str, modality: str):
     """Load every image in *folder_path* once."""
