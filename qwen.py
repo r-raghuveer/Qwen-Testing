@@ -1,216 +1,263 @@
+import random
 import os
-import time
-from PIL import Image
+from transformers import AutoTokenizer
 
-from transformers import AutoTokenizer  # noqa: F401 (tokenizer kept for future use)
 from vllm import LLM, SamplingParams
+from PIL import Image
+Image.MAX_IMAGE_PIXELS = 933120000
+
+from vllm.assets.image import ImageAsset
 from vllm.assets.video import VideoAsset
 from vllm.utils import FlexibleArgumentParser
+import time
 
-# ---------------------------------------------------------------------------
-# Default hyper‑parameters that can be overridden via CLI flags
-# ---------------------------------------------------------------------------
-DEFAULT_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct"  # single‑GPU, 7‑B variant
-DEFAULT_TP    = 1                               # tensor‑parallel size
-
-# Prevent PIL from crashing on very large images
-Image.MAX_IMAGE_PIXELS = 933_120_000
-
-# ---------------------------------------------------------------------------
-# Model wrapper
-# ---------------------------------------------------------------------------
-
-def run_qwen2_5_vl(question: str,
-                   modality: str,
-                   model_name: str = DEFAULT_MODEL,
-                   tp_size: int = DEFAULT_TP,
-                   disable_cache: bool = False):
-    """Create an LLM instance, build the system+user prompt, return all parts."""
-
+def run_qwen2_5_vl(question: str, modality: str):
+    model_name = "Qwen/Qwen2.5-VL-7B-Instruct"
     llm = LLM(
         model=model_name,
-        max_model_len=12_000,
+        max_model_len=12000,
         max_num_seqs=5,
         mm_processor_kwargs={
             "min_pixels": 28 * 28,
-            "max_pixels": 1_280 * 28 * 28,
+            "max_pixels": 1280 * 28 * 28,
             "fps": 1,
         },
-        tensor_parallel_size=tp_size,
-        disable_mm_preprocessor_cache=disable_cache,
+        tensor_parallel_size=1,
+        disable_mm_preprocessor_cache=args.disable_mm_preprocessor_cache,  
     )
+    
+    if modality == "image":
+        placeholder = "<|image_pad|>"
+    elif modality == "video":
+        placeholder = "<|video_pad|>"
 
-    placeholder = "<|image_pad|>" if modality == "image" else "<|video_pad|>"
-
-    prompt = (
-        "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
-        f"<|im_start|>user\n<|vision_start|>{placeholder}<|vision_end|>"
-        f"{question}<|im_end|>\n"
-        "<|im_start|>assistant\n"
-    )
-
-    # Qwen 2.5 models do not require a special stop token; pass None
+    prompt = ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+            f"<|im_start|>user\n<|vision_start|>{placeholder}<|vision_end|>"
+            f"{question}<|im_end|>\n"
+            "<|im_start|>assistant\n")
     stop_token_ids = None
     return llm, prompt, stop_token_ids
 
 
-# ---------------------------------------------------------------------------
-# Input helpers
-# ---------------------------------------------------------------------------
 
 def get_multi_modal_input(args):
-    """Prepare one sample image (or video) + task‑specific question."""
-
+    
     if args.modality == "image":
-        # ---- choose the first available image dynamically ------------------
-        img_path = _pick_first_image(args.input_folder_path)
-        image = Image.open(img_path).convert("RGB")
-
-        if args.output_type == "html":
-            img_question = (
-                """
-                You are tasked with converting a scanned document image into a fully‑renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
+        image = Image.open("./qwen_testing/22-04-2016-p-/22-04-2016-p-_page_1.png").convert("RGB")
+       
+        if args.output_type =='html':
+            img_question = """
+             You are tasked with converting a scanned document image into a fully-renderable HTML document. The image may contain complicated tables, handwritten elements, stamps, logos, and other details. Your goal is to create an accurate HTML representation of the document using only the information visible in the image.
 
                 Follow these steps to create the HTML document:
-                1. **Analyze** the image content: identify sections, tables, headings, etc.
-                2. **Create** the basic HTML skeleton with <!DOCTYPE html>.
-                3. **Represent** the content using proper tags; use <span class="handwritten"> for handwriting, <div class="stamp"> for stamps, etc.
-                4. **Style** via an inline <style> block so the rendered page mimics the original.
-                5. **Review** that every visible element is captured.
-                6. Output the full HTML starting with <!DOCTYPE html> and ending with </html>.
-                """
-            )
-        else:  # doc_type
-            img_question = (
-                """
-                Examine the document image and state **only** its type, choosing **exactly one** from:
-                Circulars, Notifications, Orders, Memorandums, Gazettes, Acts/Rules, Policies, Resolutions, Guidelines, Licenses, Minutes of Meetings, Forms, Receipts, Bonds, Tenders, Resumes, Bio‑data.
-                Reply with the chosen type *plain text* – no explanation.
-                """
-            )
 
-        return {"data": image, "question": img_question}
+                1. Analyze the image content:
+                - Identify the main sections of the document.
+                - Note any tables, headings, paragraphs, lists, and special elements (stamps, logos, handwritten notes).
+                - Pay attention to the overall layout and structure.
+
+                2. Create the basic HTML structure:
+                - Begin with the standard HTML5 doctype and <html>, <head>, and <body> tags.
+                - Include a <meta charset="UTF-8"> tag in the <head> section.
+                - Add a <title> tag with an appropriate title based on the document content.
+
+                3. Represent the document content:
+                - Use appropriate HTML elements to structure the content (e.g., <h1>, <h2>, <p>, <ul>, <ol>, <li>).
+                - For tables:
+                    - Use <table>, <tr>, <th>, and <td> tags.
+                    - Implement colspan and rowspan attributes if necessary.
+                    - Ensure the table structure accurately reflects the original.
+                - For handwritten elements:
+                    - Use <span> tags with a class attribute (e.g., <span class="handwritten">).
+                - For stamps and logos:
+                    - Use <div> tags with appropriate class attributes (e.g., <div class="stamp">, <div class="logo">).
+                    - Describe the visual appearance of stamps and logos using text content within these divs.
+
+                4. Apply basic styling:
+                - Create a <style> section in the <head> of the document.
+                - Define basic styles for the document layout.
+                - Add specific styles for handwritten text, stamps, and logos.
+                - Use CSS to approximate the visual appearance of the original document (e.g., fonts, colors, spacing).
+
+                5. Review and refine:
+                - Ensure all content from the image is represented in the HTML.
+                - Check that the structure and layout closely match the original document.
+                - Verify that tables are correctly formatted and aligned.
+
+                6. Output the final HTML:
+                - Provide the complete HTML code, including doctype, <html>, <head>, and <body> tags.
+                - Ensure all opening tags have corresponding closing tags.
+                - Use proper indentation for readability.
+                - Begin your response with <!DOCTYPE html> and end it with </html>.
+            """
+        elif args.output_type == 'doc_type':
+          
+            img_question = """
+            You are an AI specialized in analyzing and extracting text from images. Your task is to:
+
+            Examine the provided image document and analyze its content.
+            Identify its document type by selecting the most appropriate category from the following predefined list:
+                Circulars
+                Notifications
+                Orders
+                Memorandums
+                Gazettes
+                Acts/Rules
+                Policies
+                Resolutions
+                Guidelines
+                Licenses
+                Minutes of Meetings
+                Forms
+                Receipts
+                Bonds
+                Tenders
+                Resumes
+                Bio-data
+            🔹 Important: The document type must be selected strictly from the above categories. Provide the document type only in plain text without additional explanations.
+
+
+            """
+    
+        return {
+            "data": image,
+            "question": img_question,
+        }
 
     if args.modality == "video":
-        video = VideoAsset(name="sample_demo_1.mp4", num_frames=args.num_frames).np_ndarrays
-        return {"data": video, "question": "Why is this video funny?"}
+        video = VideoAsset(name="sample_demo_1.mp4",
+                           num_frames=args.num_frames).np_ndarrays
+        vid_question = "Why is this video funny?"
 
-    raise ValueError(f"Unsupported modality: {args.modality}")
+        return {
+            "data": video,
+            "question": vid_question,
+        }
 
-def apply_image_repeat(folder_path: str, prompt: str, modality: str):
-    """Load every image in *folder_path* once."""
+    msg = f"Modality {args.modality} is not supported."
+    raise ValueError(msg)
+
+
+def apply_image_repeat(folder_path, prompt, modality):
     inputs = []
     for file in os.listdir(folder_path):
-        if file.lower().endswith((".png", ".jpg", ".jpeg")):
-            try:
-                image = Image.open(os.path.join(folder_path, file)).convert("RGB")
+        if file.endswith(('.png','.jpg','.jpeg')): 
+            try:      
+                image=Image.open(os.path.join(folder_path,file))
                 inputs.append({
                     "prompt": prompt,
-                    "multi_modal_data": {modality: image},
-                    "image_name": file,
+                    "multi_modal_data": {
+                        modality: image
+                    },
+                    "image_name":file
                 })
-            except Exception as exc:  # keep going on bad files
-                print(f"[WARN] Could not load {file}: {exc}")
-    return inputs
+            except Exception as e:
+                print(f"error loading{file}:{e}")
+        return inputs    
+    
 
-
-def folders_pdf(folder_path: str, prompt: str, modality: str):
-    """Recurse one level down (folder/IMG) and collect images."""
+def folders_pdf(folder_path, prompt, modality):
+   
     inputs = []
-    for img_folder in os.listdir(folder_path):
-        sub_dir = os.path.join(folder_path, img_folder)
-        if not os.path.isdir(sub_dir):
-            continue
-        for img_file in os.listdir(sub_dir):
-            if img_file.lower().endswith((".png", ".jpg", ".jpeg")):
-                try:
-                    image = Image.open(os.path.join(sub_dir, img_file)).convert("RGB")
-                    inputs.append({
-                        "prompt": prompt,
-                        "multi_modal_data": {modality: image},
-                        "image_name": img_file,
-                    })
-                except Exception as exc:
-                    print(f"[WARN] Could not load {img_file}: {exc}")
-    return inputs
+    cnt=0
+    for imgfolder in os.listdir(folder_path):
+        cnt+=1
+        for imgfile in os.listdir(os.path.join(folder_path,imgfolder)):
+            name= os.path.join(folder_path,imgfolder,imgfile)
+            if name.endswith(('.png','.jpg','.jpeg')):
+                image=Image.open(os.path.join(folder_path,imgfolder,imgfile))
+                inputs.append({
+                    "prompt": prompt,
+                    "multi_modal_data": {
+                        modality: image
+                    },
+                    "image_name":imgfile
+                })
+      
+    return inputs               
 
-
-# ---------------------------------------------------------------------------
-# Main driver
-# ---------------------------------------------------------------------------
 
 model_example_map = {
     "qwen2_5_vl": run_qwen2_5_vl,
 }
 
-
 def main(args):
-    if args.model_type not in model_example_map:
-        raise ValueError(f"Unsupported model type: {args.model_type}")
-
-    # 1) Build the single prompt
-    mm_input = get_multi_modal_input(args)
-    question = mm_input["question"]
+    model = args.model_type
+    if model not in model_example_map:
+        raise ValueError(f"Model type {model} is not supported.")
     modality = args.modality
-
-    llm, prompt, stop_ids = model_example_map[args.model_type](
-        question,
-        modality,
-        model_name=args.hf_model_name,
-        tp_size=args.tp_size,
-        disable_cache=args.disable_mm_preprocessor_cache,
-    )
-
-    # 2) Prepare data list
-    if args.type_of_input == "images":
-        inputs = apply_image_repeat(args.input_folder_path, prompt, modality)
-    else:  # subfolder_images
-        inputs = folders_pdf(args.input_folder_path, prompt, modality)
-
-    if not inputs:
-        raise RuntimeError("No images found for inference — check your paths.")
-
-    # 3) Sampling parameters and generate loop
+    type_of_input = args.type_of_input
+    input_folder_path = args.input_folder_path
+    output_html_dir = args.output_html_dir
+    output_type = args.output_type
+    
+    os.makedirs(output_html_dir,exist_ok = True)
+    mm_input = get_multi_modal_input(args)
+    data = mm_input["data"]
+    question = mm_input["question"]
+    llm, prompt, stop_token_ids = model_example_map[model](question, modality)
     sampling_params = SamplingParams(
-        temperature=0.8,
-        top_p=0.9,
-        top_k=50,
-        max_tokens=20,
-        stop_token_ids=stop_ids,
+        temperature=0.8,        
+        top_p=0.9,              
+        top_k=50,               
+        max_tokens=20,         
+        #n=2,
+        stop_token_ids=stop_token_ids  
     )
-
-    start = time.time()
-    outputs = llm.generate(inputs, sampling_params=sampling_params)
-    if args.time_generate:
-        print(f"generate() took {time.time() - start:.2f}s for {len(inputs)} prompts")
-
-    # For now just pretty‑print the first output
-    print("====== SAMPLE OUTPUT ======")
-    print(outputs[0].outputs[0].text if outputs else "<no output>")
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
+    assert args.num_prompts > 0
+    if type_of_input == 'images':
+        inputs = apply_image_repeat(input_folder_path,prompt,modality)
+    elif type_of_input == 'subfolder_images':
+        inputs = folders_pdf(input_folder_path,prompt,modality) 
+    start_time = time.time()
+    while True:
+        outputs = llm.generate(inputs, sampling_params=sampling_params)
+    
 if __name__ == "__main__":
-    parser = FlexibleArgumentParser(description="vLLM Qwen‑VL offline demo")
+    parser = FlexibleArgumentParser(
+        description='Demo on using vLLM for offline inference with '
+        'vision language models for text generation')
+    parser.add_argument('--model-type',
+                        '-m',
+                        type=str,
+                        default="qwen2_5_vl",
+                        choices=model_example_map.keys(),
+                        help='Huggingface "model_type".')
+    parser.add_argument('--num-prompts',
+                        type=int,
+                        default=2,
+                        help='Number of prompts to run.')
+    parser.add_argument('--modality',
+                        type=str,
+                        default="image",
+                        choices=['image', 'video'],
+                        help='Modality of the input.')
+    parser.add_argument('--num-frames',
+                        type=int,
+                        default=16,
+                        help='Number of frames to extract from the video.')
 
-    parser.add_argument("--model-type", "-m", choices=model_example_map.keys(), default="qwen2_5_vl")
-    parser.add_argument("--hf-model-name", default=DEFAULT_MODEL, help="HF repo id to load (default 7‑B)")
-    parser.add_argument("--tp-size", type=int, default=DEFAULT_TP, help="Tensor‑parallel size; 1 = single GPU")
+    parser.add_argument(
+        '--image-repeat-prob',
+        type=float,
+        default=None,
+        help='Simulates the hit-ratio for multi-modal preprocessor cache'
+        ' (if enabled)')
 
-    parser.add_argument("--num-prompts", type=int, default=2)
-    parser.add_argument("--modality", choices=["image", "video"], default="image")
-    parser.add_argument("--num-frames", type=int, default=16)
+    parser.add_argument(
+        '--disable-mm-preprocessor-cache',
+        action='store_true',
+        help='If True, disables caching of multi-modal preprocessor/mapper.')
 
-    parser.add_argument("--disable-mm-preprocessor-cache", action="store_true")
-    parser.add_argument("--time-generate", action="store_true")
-
-    parser.add_argument("--type-of-input", choices=["images", "subfolder_images"], default="subfolder_images")
-    parser.add_argument("--input-folder-path", default="./qwen_testing/")
-    parser.add_argument("--output-html-dir", default="./outputs")
-    parser.add_argument("--output-type", choices=["html", "doc_type"], default="html")
-
+    parser.add_argument(
+        '--time-generate',
+        action='store_true',
+        help='If True, then print the total generate() call time')
+    parser.add_argument(
+        '--type-of-input',type = str,default = 'subfolder_images', choices =['images','subfolder_images']
+    )
+    parser.add_argument('--input-folder-path',default="./qwen_testing/",type = str)
+    parser.add_argument('--output-html-dir',default="./outputs",type = str)
+    parser.add_argument('--output-type',type=str,default="html" ,  choices =['html','doc_type'])
     args = parser.parse_args()
     main(args)
