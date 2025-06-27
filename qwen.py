@@ -259,5 +259,9 @@ if __name__ == "__main__":
     parser.add_argument('--input-folder-path',default="./qwen_testing/",type = str)
     parser.add_argument('--output-html-dir',default="./outputs",type = str)
     parser.add_argument('--output-type',type=str,default="html" ,  choices =['html','doc_type'])
+    parser.add_argument('--gpu-no', type=str)
+
     args = parser.parse_args()
+    os.environ['CUDA_VISIBLE_DEVICES']=args.gpu_no
+    
     main(args)
